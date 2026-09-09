@@ -6,7 +6,7 @@ It records the match ID, participating Riot IDs, champions, kills, wins, first-k
 
 ## Installing
 
-Download the latest `FirstBloodUploader-Setup.exe` from this repository's Releases page. On first launch:
+Download the latest `FirstBloodUploader-win-Setup.exe` from the [official GitHub Releases page](https://github.com/Amitc6700/First-Blood/releases/latest). Share that page with friends instead of attaching an executable or portable ZIP to Discord. On first launch:
 
 1. Open **Settings**.
 2. Give the PC a recognizable name.
@@ -20,6 +20,8 @@ The application can start with Windows and minimize to the system tray. **Check 
 Configuration, device credentials, logs, local match data, and upload history are stored under `%LOCALAPPDATA%\FirstBloodUploader`; they are never included in this repository or a release package. Each installation receives a unique revocable credential. The server stores only its SHA-256 hash and rate-limits both device and IP traffic.
 
 Successful and duplicate uploads are permanently recorded locally. Authentication failures, throttling, and temporary server problems remain retryable. Invalid match records are marked as unable to complete.
+
+Release installers are built from this public source by GitHub Actions. Each release includes SHA-256 checksums and a GitHub build-provenance attestation. Release packages never contain local configuration, device credentials, match history, or logs. Do not redistribute a copied application folder because it may contain those private files.
 
 ## Building locally
 
