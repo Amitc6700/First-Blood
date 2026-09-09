@@ -163,6 +163,8 @@ async function main() {
     if (uploading) return;
     uploading = true;
     try {
+      const enriched = await collector.enrichAugments({ limit:8 });
+      if (enriched) console.log(`[${new Date().toLocaleTimeString()}] Added augment choices to ${enriched} match${enriched === 1 ? '' : 'es'}.`);
       const records = collector.getRecords();
       const latestRecordId = records[0]?.id;
       for (const record of records) {

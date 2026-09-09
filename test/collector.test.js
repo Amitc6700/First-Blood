@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { firstBloodFromEvents, pentakillsFromEvents, gameResultFromEvents, normalizeName, parseLockfile, shapeParticipants, participantName, validRiotId } = require('../collector');
+const { applyAugmentsToRecord, augmentCatalogFromPayload, firstBloodFromEvents, pentakillsFromEvents, gameResultFromEvents, normalizeName, parseLockfile, shapeParticipants, participantName, validRiotId } = require('../collector');
 
 test('parses a League client lockfile', () => {
   assert.deepEqual(parseLockfile('LeagueClient:1234:45678:secret:https'), {
@@ -80,4 +80,36 @@ test('does not treat Riot anonymous marker as a player identity', () => {
   assert.equal(validRiotId(anonymous.riotId), false);
   assert.equal(participantName(anonymous), 'Xerath');
   assert.equal(shapeParticipants([anonymous], 'Someone#NA1', null)[0].hasRiotId, false);
+});
+
+test('adds ordered Mayhem augments from League match history', () => {
+  const catalog = augmentCatalogFromPayload(
+    [{ modeName:'KIWI', augmentList:['Maps/ModeSpecificData/Augments/ARAM_TestOne', 'Maps/ModeSpecificData/Augments/TestTwo'] }],
+    [
+      { id:101, augmentNameId:'ARAM_TestOne', nameTRA:'Test One', rarity:'kSilver' },
+      { id:202, augmentNameId:'TestTwo', nameTRA:'Test Two', rarity:'kPrismatic' },
+      { id:303, augmentNameId:'NotInMayhem', nameTRA:'Excluded', rarity:'kGold' }
+    ]
+  );
+  assert.equal(catalog.size, 2);
+  const record = { id:'123456', queueId:2400, participants:[{ name:'Friend#NA1' }, { name:'Enemy#EUW' }] };
+  const match = {
+    queueId:2400,
+    gameVersion:'16.17.1',
+    participantIdentities:[
+      { participantId:1, player:{ gameName:'Friend', tagLine:'NA1' } },
+      { participantId:2, player:{ gameName:'Enemy', tagLine:'EUW' } }
+    ],
+    participants:[
+      { participantId:1, stats:{ playerAugment1:101, playerAugment2:202, playerAugment3:0 } },
+      { participantId:2, stats:{ playerAugment1:202, playerAugment2:101 } }
+    ]
+  };
+  assert.equal(applyAugmentsToRecord(record, match, catalog), true);
+  assert.deepEqual(record.participants[0].augments, [
+    { id:101, name:'Test One', rarity:'kSilver', icon:'101.png', order:1 },
+    { id:202, name:'Test Two', rarity:'kPrismatic', icon:'202.png', order:2 }
+  ]);
+  assert.equal(record.augmentData.playerCount, 2);
+  assert.equal(record.schemaVersion, 3);
 });

@@ -112,6 +112,74 @@ function requestJson({ port, pathname, auth }) {
   });
 }
 
+function riotIdKey(value) {
+  return String(value || '').normalize('NFKC').replace(/\s*#\s*/, '#').trim().toLowerCase();
+}
+
+function augmentCatalogFromPayload(lists, definitions) {
+  const current = (lists || []).find(list => list?.modeName === 'KIWI');
+  const allowed = new Set((current?.augmentList || []).map(value => String(value).split('/').pop()));
+  const catalog = new Map();
+  for (const augment of definitions || []) {
+    if (!allowed.has(augment?.augmentNameId) || !Number.isInteger(Number(augment?.id))) continue;
+    catalog.set(Number(augment.id), {
+      id:Number(augment.id),
+      name:String(augment.nameTRA || augment.simpleNameTRA || augment.augmentNameId || `Augment ${augment.id}`),
+      rarity:String(augment.rarity || 'kUnknown'),
+      icon:`${Number(augment.id)}.png`
+    });
+  }
+  return catalog;
+}
+
+function applyAugmentsToRecord(record, match, catalog) {
+  if (!record || !match || Number(match.queueId) !== MAYHEM_QUEUE_ID) return false;
+  const statsByIdentity = new Map();
+  const participantsById = new Map((match.participants || []).map(player => [Number(player.participantId), player]));
+  for (const identity of match.participantIdentities || []) {
+    const player = identity?.player || {};
+    const name = player.gameName && player.tagLine
+      ? `${player.gameName}#${player.tagLine}`
+      : player.summonerName;
+    const stats = participantsById.get(Number(identity.participantId))?.stats;
+    if (!name || !stats) continue;
+    const augments = [];
+    for (let order = 1; order <= 6; order += 1) {
+      const id = Number(stats[`playerAugment${order}`] || 0);
+      if (!id) continue;
+      const details = catalog.get(id) || { id, name:`Augment ${id}`, rarity:'kUnknown', icon:`${id}.png` };
+      augments.push({ ...details, order });
+    }
+    statsByIdentity.set(riotIdKey(name), augments);
+  }
+
+  let matched = 0;
+  for (const participant of record.participants || []) {
+    const augments = statsByIdentity.get(riotIdKey(participant.name));
+    if (!augments) continue;
+    participant.augments = augments;
+    matched += 1;
+  }
+  if (!matched) return false;
+  record.schemaVersion = Math.max(Number(record.schemaVersion || 0), 3);
+  record.augmentData = {
+    capturedAt:Date.now(),
+    gameVersion:match.gameVersion || null,
+    playerCount:matched,
+    source:'League client match history'
+  };
+  return true;
+}
+
+async function readAugmentCatalog(lockfile) {
+  const auth = `riot:${lockfile.password}`;
+  const [lists, definitions] = await Promise.all([
+    requestJson({ port:lockfile.port, pathname:'/lol-game-data/assets/v1/augment-lists.json', auth }),
+    requestJson({ port:lockfile.port, pathname:'/lol-game-data/assets/v1/cherry-augments.json', auth })
+  ]);
+  return augmentCatalogFromPayload(lists, definitions);
+}
+
 function candidateLockfiles() {
   const candidates = [];
   if (process.env.LEAGUE_INSTALL_PATH) candidates.push(path.join(process.env.LEAGUE_INSTALL_PATH, 'lockfile'));
@@ -151,11 +219,26 @@ function createCollector({ dataFile, intervalMs = 2000 } = {}) {
   let records = readRecords(file);
   let timer;
   let polling = false;
+  let augmentCatalog;
+  let augmentCatalogRetryAt = 0;
+  const augmentRetryAt = new Map();
   let status = { state: 'starting', message: 'Looking for the League client…', queueId: null, lastChecked: null };
 
   function save(record) {
     const existing = records.findIndex(item => item.id === record.id);
-    if (existing >= 0) records[existing] = record;
+    if (existing >= 0) {
+      const previous = records[existing];
+      if (!record.augmentData && previous.augmentData) {
+        const previousPlayers = new Map((previous.participants || []).map(player => [riotIdKey(player.name), player]));
+        for (const participant of record.participants || []) {
+          const augments = previousPlayers.get(riotIdKey(participant.name))?.augments;
+          if (augments?.length) participant.augments = augments;
+        }
+        record.augmentData = previous.augmentData;
+        record.schemaVersion = Math.max(Number(record.schemaVersion || 0), Number(previous.schemaVersion || 0));
+      }
+      records[existing] = record;
+    }
     else records.unshift(record);
     fs.mkdirSync(path.dirname(file), { recursive: true });
     const temporary = `${file}.tmp`;
@@ -255,13 +338,49 @@ function createCollector({ dataFile, intervalMs = 2000 } = {}) {
     }
   }
 
+  async function enrichAugments({ limit = 8 } = {}) {
+    const lockfile = findLockfile();
+    if (!lockfile) return 0;
+    if (!augmentCatalog) {
+      if (augmentCatalogRetryAt > Date.now()) return 0;
+      try { augmentCatalog = await readAugmentCatalog(lockfile); }
+      catch { augmentCatalogRetryAt = Date.now() + 10 * 60 * 1000; return 0; }
+    }
+    let enriched = 0;
+    let attempted = 0;
+    for (const record of records) {
+      if (attempted >= limit) break;
+      const recordId = String(record.id || '');
+      if (record.augmentData?.playerCount || Number(augmentRetryAt.get(recordId) || 0) > Date.now()) continue;
+      attempted += 1;
+      try {
+        const match = await requestJson({
+          port:lockfile.port,
+          pathname:`/lol-match-history/v1/games/${encodeURIComponent(recordId)}`,
+          auth:`riot:${lockfile.password}`
+        });
+        if (applyAugmentsToRecord(record, match, augmentCatalog)) {
+          save(record);
+          enriched += 1;
+        } else {
+          augmentRetryAt.set(recordId, Date.now() + 10 * 60 * 1000);
+        }
+      } catch (error) {
+        // Newly completed games can take a moment to enter local match history.
+        augmentRetryAt.set(recordId, Date.now() + (error.status === 404 ? 60 * 1000 : 10 * 60 * 1000));
+      }
+    }
+    return enriched;
+  }
+
   return {
     start() { if (!timer) { poll(); timer = setInterval(poll, intervalMs); } },
     stop() { if (timer) clearInterval(timer); timer = null; },
     getStatus() { return { ...status, recordCount:records.length, lockfilePaths:candidateLockfiles() }; },
     getRecords() { return [...records]; },
+    enrichAugments,
     poll
   };
 }
 
-module.exports = { createCollector, firstBloodFromEvents, pentakillsFromEvents, gameResultFromEvents, normalizeName, parseLockfile, shapeParticipants, participantName, validRiotId, MAYHEM_QUEUE_ID };
+module.exports = { applyAugmentsToRecord, augmentCatalogFromPayload, createCollector, firstBloodFromEvents, pentakillsFromEvents, gameResultFromEvents, normalizeName, parseLockfile, shapeParticipants, participantName, riotIdKey, validRiotId, MAYHEM_QUEUE_ID };

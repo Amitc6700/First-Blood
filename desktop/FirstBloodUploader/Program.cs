@@ -19,7 +19,7 @@ sealed class UiSettings {
 }
 
 sealed class MainForm : Form {
-    const string UpdateRepository="https://github.com/Amitc6700/first-blood-uploader";
+    const string UpdateRepository="https://github.com/Amitc6700/First-Blood";
     readonly string appDir = AppContext.BaseDirectory;
     readonly string configDir;
     readonly string configFile;

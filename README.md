@@ -2,7 +2,7 @@
 
 A small Windows tray application that records completed League of Legends **ARAM: Mayhem** matches and uploads them to the First Blood dashboard at [hollowpoints.gg/first-blood](https://hollowpoints.gg/first-blood).
 
-It records the match ID, participating Riot IDs, champions, kills, wins, first-kill and first-death players, pentakills, and the final local League client snapshot. Multiple friends can record the same match: the website deduplicates by Riot match ID and merges the most complete observations.
+It records the match ID, participating Riot IDs, champions, kills, wins, first-kill and first-death players, pentakills, ordered Mayhem augment choices, and the final local League client snapshot. Multiple friends can record the same match: the website deduplicates by Riot match ID and merges the most complete observations.
 
 ## Installing
 
@@ -33,7 +33,7 @@ dotnet publish desktop/FirstBloodUploader/FirstBloodUploader.csproj -c Release -
 Copy-Item FirstBloodRecorder.exe release/publish/FirstBloodRecorder.exe
 ```
 
-The release workflow is triggered by a version tag such as `v1.1.0`. It builds the recorder and uploader, packages them with pinned Velopack 1.2.0, and publishes the installer and update feed through GitHub Releases.
+The release workflow is triggered by a version tag such as `v1.2.0`. It builds the recorder and uploader, packages them with pinned Velopack 1.2.0, and publishes the installer and update feed through GitHub Releases.
 
 ## Riot Games notice
 
