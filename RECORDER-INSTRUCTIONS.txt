@@ -1,0 +1,18 @@
+FIRST BLOOD UPLOADER
+====================
+
+1. Install and open First Blood Uploader.
+2. Open Settings.
+3. Give this PC a recognizable name.
+4. Enter the temporary invite code supplied by the host.
+5. Check that the League folder is correct, then choose Register and save.
+6. Leave the uploader running in the system tray while playing ARAM: Mayhem.
+
+The invite code is used only during registration. This PC receives its own
+credential, which can be disabled without affecting anyone else.
+
+Your configuration, logs, local match backup, and upload history are kept in:
+%LOCALAPPDATA%\FirstBloodUploader
+
+Multiple friends can record the same match without creating duplicate sessions.
+Windows may show an unknown-publisher warning until the installer is digitally signed.

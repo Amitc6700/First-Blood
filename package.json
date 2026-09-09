@@ -1,0 +1,15 @@
+{
+  "name": "first-blood",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Windows recorder and uploader for ARAM: Mayhem match statistics",
+  "scripts": {
+    "recorder": "node recorder-app.js",
+    "build:recorder": "pkg recorder-app.js --target node22-win-x64 --output FirstBloodRecorder.exe",
+    "test": "node --test test/collector.test.js test/recorder-app.test.js"
+  },
+  "engines": { "node": ">=18" },
+  "devDependencies": {
+    "@yao-pkg/pkg": "^6.22.0"
+  }
+}

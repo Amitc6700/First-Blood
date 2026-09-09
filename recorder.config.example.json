@@ -1,0 +1,11 @@
+{
+  "serverUrl": "https://hollowpoints.gg",
+  "deviceToken": "",
+  "installId": "",
+  "deviceName": "My gaming PC",
+  "leagueInstallPath": "C:\\Riot Games\\League of Legends",
+  "localDataFile": "recorder-data.json",
+  "uploadStateFile": "upload-state.json",
+  "pollIntervalMs": 2000,
+  "uploadIntervalMs": 15000
+}

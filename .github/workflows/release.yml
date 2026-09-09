@@ -1,0 +1,47 @@
+name: Build Windows release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Run recorder tests
+        run: npm test
+
+      - name: Build recorder
+        run: npm run build:recorder
+
+      - name: Publish uploader
+        run: dotnet publish desktop/FirstBloodUploader/FirstBloodUploader.csproj -c Release -r win-x64 --self-contained true -o release/publish
+
+      - name: Add recorder to uploader package
+        shell: pwsh
+        run: Copy-Item -LiteralPath FirstBloodRecorder.exe -Destination release/publish/FirstBloodRecorder.exe
+
+      - name: Restore pinned release packager
+        run: dotnet tool restore
+
+      - name: Build installer and update feed
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          dotnet tool run vpk pack --packId FirstBloodUploader --packVersion $version --packDir release/publish --mainExe FirstBloodUploader.exe --outputDir release/packages --icon desktop/FirstBloodUploader/Assets/first-blood.ico
+
+      - name: Publish GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ github.ref_name }}" release/packages/* --generate-notes --title "First Blood Uploader ${{ github.ref_name }}"
