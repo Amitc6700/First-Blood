@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { shouldDeferUpload, fingerprint, isPermanentUploadError } = require('../recorder-app');
+const { shouldDeferUpload, fingerprint, isPermanentUploadError, retryDelay } = require('../recorder-app');
 
 test('defers the active Mayhem match until its final result exists', () => {
   const active = { id:'123', queueId:2400, win:null };
@@ -25,4 +25,11 @@ test('credentials and throttling errors remain retryable', () => {
   assert.equal(isPermanentUploadError(429), false);
   assert.equal(isPermanentUploadError(400), true);
   assert.equal(isPermanentUploadError(413), true);
+});
+
+test('temporary upload failures back off up to fifteen minutes', () => {
+  assert.equal(retryDelay(1), 30_000);
+  assert.equal(retryDelay(2), 60_000);
+  assert.equal(retryDelay(5), 480_000);
+  assert.equal(retryDelay(20), 900_000);
 });

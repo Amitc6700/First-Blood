@@ -1,6 +1,6 @@
 {
   "name": "first-blood",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "private": true,
   "description": "Windows recorder and uploader for ARAM: Mayhem match statistics",
   "scripts": {

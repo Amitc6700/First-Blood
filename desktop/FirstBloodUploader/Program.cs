@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Drawing;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using Microsoft.Win32;
 using Velopack;
@@ -69,7 +70,7 @@ sealed class MainForm : Form {
     void StartWorker(){
         var exe=Path.Combine(appDir,"FirstBloodRecorder.exe");
         if(!File.Exists(exe)){SetStatus("Recorder missing",Color.IndianRed);AppendLog("FirstBloodRecorder.exe must be beside this app.");return;}
-        worker=new Process { StartInfo=new ProcessStartInfo(exe){WorkingDirectory=appDir,Arguments=$"--config=\"{configFile}\"",UseShellExecute=false,RedirectStandardOutput=true,RedirectStandardError=true,CreateNoWindow=true},EnableRaisingEvents=true };
+        worker=new Process { StartInfo=new ProcessStartInfo(exe){WorkingDirectory=appDir,Arguments=$"--config=\"{configFile}\"",UseShellExecute=false,RedirectStandardOutput=true,RedirectStandardError=true,StandardOutputEncoding=Encoding.UTF8,StandardErrorEncoding=Encoding.UTF8,CreateNoWindow=true},EnableRaisingEvents=true };
         worker.OutputDataReceived+=(_,e)=>{if(e.Data!=null)BeginInvoke(()=>HandleLine(e.Data));};worker.ErrorDataReceived+=(_,e)=>{if(e.Data!=null)BeginInvoke(()=>HandleLine(e.Data));};worker.Exited+=(_,_)=>BeginInvoke(()=>SetStatus("Stopped",Color.Gray));
         worker.Start();worker.BeginOutputReadLine();worker.BeginErrorReadLine();SetStatus("Checking League client",Color.Gray);
     }

@@ -97,7 +97,8 @@ async function registerDevice(serverUrl, inviteCode, installId, deviceName) {
   const response = await fetch(`${serverUrl.replace(/\/$/, '')}/api/upload/register`, {
     method:'POST',
     headers:{ 'Content-Type':'application/json' },
-    body:JSON.stringify({ inviteCode, installId, deviceName })
+    body:JSON.stringify({ inviteCode, installId, deviceName }),
+    signal:AbortSignal.timeout(20000)
   });
   const result = await response.json().catch(() => ({}));
   if (!response.ok || result?.ok !== true || !/^fbu_[A-Za-z0-9_-]{43}$/.test(result.deviceToken || '')) {
@@ -112,7 +113,8 @@ async function uploadRecord(config, record) {
   const response = await fetch(`${config.serverUrl.replace(/\/$/, '')}/api/upload/matches`, {
     method:'POST',
     headers:{ 'Authorization':`Bearer ${config.deviceToken || config.uploadToken}`, 'Content-Type':'application/json' },
-    body:JSON.stringify(record)
+    body:JSON.stringify(record),
+    signal:AbortSignal.timeout(20000)
   });
   if (!response.ok) {
     let message = `Upload failed (${response.status})`;
@@ -141,6 +143,15 @@ function isPermanentUploadError(status) {
   return [400, 413, 422].includes(Number(status));
 }
 
+function retryDelay(failureCount) {
+  return Math.min(15 * 60_000, 30_000 * (2 ** Math.max(0, Number(failureCount) - 1)));
+}
+
+function retryDelayLabel(milliseconds) {
+  const seconds = Math.ceil(milliseconds / 1000);
+  return seconds < 60 ? `${seconds} seconds` : `${Math.ceil(seconds / 60)} minute${seconds > 60 ? 's' : ''}`;
+}
+
 async function main() {
   const config = loadConfig();
   if (!config) return;
@@ -152,6 +163,8 @@ async function main() {
   const uploadState = readUploadState(stateFile);
   let uploading = false;
   let lastStatus = '';
+  let consecutiveUploadFailures = 0;
+  let nextUploadAttemptAt = 0;
 
   async function sync() {
     const status = collector.getStatus();
@@ -165,6 +178,7 @@ async function main() {
     try {
       const enriched = await collector.enrichAugments({ limit:8 });
       if (enriched) console.log(`[${new Date().toLocaleTimeString()}] Added augment choices to ${enriched} match${enriched === 1 ? '' : 'es'}.`);
+      if (Date.now() < nextUploadAttemptAt) return;
       const records = collector.getRecords();
       const latestRecordId = records[0]?.id;
       for (const record of records) {
@@ -188,8 +202,13 @@ async function main() {
           throw error;
         }
       }
+      consecutiveUploadFailures = 0;
+      nextUploadAttemptAt = 0;
     } catch (error) {
-      console.error(`[${new Date().toLocaleTimeString()}] ${error.message}; will retry.`);
+      consecutiveUploadFailures += 1;
+      const delay = retryDelay(consecutiveUploadFailures);
+      nextUploadAttemptAt = Date.now() + delay;
+      console.error(`[${new Date().toLocaleTimeString()}] ${error.message}; will retry in ${retryDelayLabel(delay)}.`);
     } finally {
       uploading = false;
     }
@@ -207,4 +226,4 @@ async function main() {
 
 if (require.main === module) main().catch(error => { console.error(error.message); process.exitCode = 1; });
 
-module.exports = { applicationDataDirectory, applicationDirectory, configPath, registerDevice, uploadRecord, fingerprint, isPermanentUploadError, readUploadState, writeUploadState, shouldDeferUpload };
+module.exports = { applicationDataDirectory, applicationDirectory, configPath, registerDevice, uploadRecord, fingerprint, isPermanentUploadError, readUploadState, retryDelay, writeUploadState, shouldDeferUpload };
