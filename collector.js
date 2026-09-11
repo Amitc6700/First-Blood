@@ -63,13 +63,16 @@ function validRiotId(value) {
 
 function shapeParticipants(players, activeName, blood, pentakills = [], winningTeam = null) {
   const activeKey = normalizeName(activeName);
+  let anonymousCount = 0;
   return (players || []).map(player => {
-    const name = participantName(player);
-    const key = normalizeName(name);
+    const sourceName = participantName(player);
+    const hasRiotId = validRiotId(player.riotId) || Boolean(player.riotIdGameName && player.riotIdTagLine);
+    const name = hasRiotId ? sourceName : `Unknown Player ${++anonymousCount}`;
+    const key = normalizeName(sourceName);
     return {
       ...player,
       name,
-      hasRiotId:validRiotId(player.riotId) || Boolean(player.riotIdGameName && player.riotIdTagLine),
+      hasRiotId,
       champion: player.championName || player.rawChampionName?.split('_').pop() || 'Unknown',
       team: player.team || null,
       kills:Number.isFinite(Number(player.scores?.kills)) ? Number(player.scores.kills) : null,
@@ -135,6 +138,7 @@ function augmentCatalogFromPayload(lists, definitions) {
 function applyAugmentsToRecord(record, match, catalog) {
   if (!record || !match || Number(match.queueId) !== MAYHEM_QUEUE_ID) return false;
   const statsByIdentity = new Map();
+  const statsByParticipantId = new Map();
   const participantsById = new Map((match.participants || []).map(player => [Number(player.participantId), player]));
   for (const identity of match.participantIdentities || []) {
     const player = identity?.player || {};
@@ -151,11 +155,12 @@ function applyAugmentsToRecord(record, match, catalog) {
       augments.push({ ...details, order });
     }
     statsByIdentity.set(riotIdKey(name), augments);
+    statsByParticipantId.set(Number(identity.participantId), augments);
   }
 
   let matched = 0;
   for (const participant of record.participants || []) {
-    const augments = statsByIdentity.get(riotIdKey(participant.name));
+    const augments = statsByParticipantId.get(Number(participant.participantId)) || statsByIdentity.get(riotIdKey(participant.name));
     if (!augments) continue;
     participant.augments = augments;
     matched += 1;

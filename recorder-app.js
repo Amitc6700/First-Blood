@@ -143,6 +143,10 @@ function isPermanentUploadError(status) {
   return [400, 413, 422].includes(Number(status));
 }
 
+function shouldRetryPreviouslySkipped(entry) {
+  return entry?.outcome === 'skipped' && /Every participant must have a valid Riot ID/i.test(entry.message || '');
+}
+
 function retryDelay(failureCount) {
   return Math.min(15 * 60_000, 30_000 * (2 ** Math.max(0, Number(failureCount) - 1)));
 }
@@ -185,7 +189,7 @@ async function main() {
         if (shouldDeferUpload(record, status, latestRecordId)) continue;
         const recordFingerprint = fingerprint(record);
         const recordId = String(record.id);
-        if (uploadState[recordId]?.fingerprint === recordFingerprint) continue;
+        if (uploadState[recordId]?.fingerprint === recordFingerprint && !shouldRetryPreviouslySkipped(uploadState[recordId])) continue;
         try {
           const result = await uploadRecord(config, record);
           const outcome = result.created ? 'uploaded' : 'duplicate';
@@ -226,4 +230,4 @@ async function main() {
 
 if (require.main === module) main().catch(error => { console.error(error.message); process.exitCode = 1; });
 
-module.exports = { applicationDataDirectory, applicationDirectory, configPath, registerDevice, uploadRecord, fingerprint, isPermanentUploadError, readUploadState, retryDelay, writeUploadState, shouldDeferUpload };
+module.exports = { applicationDataDirectory, applicationDirectory, configPath, registerDevice, uploadRecord, fingerprint, isPermanentUploadError, readUploadState, retryDelay, shouldRetryPreviouslySkipped, writeUploadState, shouldDeferUpload };

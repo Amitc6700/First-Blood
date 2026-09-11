@@ -79,7 +79,18 @@ test('does not treat Riot anonymous marker as a player identity', () => {
   const anonymous = { riotId:'#', riotIdGameName:'', riotIdTagLine:'', summonerName:'Xerath' };
   assert.equal(validRiotId(anonymous.riotId), false);
   assert.equal(participantName(anonymous), 'Xerath');
-  assert.equal(shapeParticipants([anonymous], 'Someone#NA1', null)[0].hasRiotId, false);
+  const participant = shapeParticipants([anonymous], 'Someone#NA1', { killer:'Xerath', victim:'Friend' })[0];
+  assert.equal(participant.hasRiotId, false);
+  assert.equal(participant.name, 'Unknown Player 1');
+  assert.equal(participant.gotFirstBlood, true);
+});
+
+test('numbers anonymous players separately inside each match', () => {
+  const participants = shapeParticipants([
+    { riotId:'#', summonerName:'HiddenOne', championName:'Lux' },
+    { riotId:'#', summonerName:'HiddenTwo', championName:'Jinx' },
+  ], 'Friend#NA1', null);
+  assert.deepEqual(participants.map(player => player.name), ['Unknown Player 1', 'Unknown Player 2']);
 });
 
 test('adds ordered Mayhem augments from League match history', () => {

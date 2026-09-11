@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { shouldDeferUpload, fingerprint, isPermanentUploadError, retryDelay } = require('../recorder-app');
+const { shouldDeferUpload, fingerprint, isPermanentUploadError, retryDelay, shouldRetryPreviouslySkipped } = require('../recorder-app');
 
 test('defers the active Mayhem match until its final result exists', () => {
   const active = { id:'123', queueId:2400, win:null };
@@ -32,4 +32,10 @@ test('temporary upload failures back off up to fifteen minutes', () => {
   assert.equal(retryDelay(2), 60_000);
   assert.equal(retryDelay(5), 480_000);
   assert.equal(retryDelay(20), 900_000);
+});
+
+test('retries matches previously skipped only because a player was anonymous', () => {
+  assert.equal(shouldRetryPreviouslySkipped({ outcome:'skipped', message:'Every participant must have a valid Riot ID' }), true);
+  assert.equal(shouldRetryPreviouslySkipped({ outcome:'skipped', message:'Only ARAM: Mayhem queue 2400 is accepted' }), false);
+  assert.equal(shouldRetryPreviouslySkipped({ outcome:'uploaded' }), false);
 });
